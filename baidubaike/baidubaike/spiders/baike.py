@@ -39,55 +39,35 @@ class BaikeSpider(scrapy.Spider):
     f = open('d:/test.txt', 'r', encoding='utf-8')
     item_seed = f.readlines()
     for item in item_seed:
-        # print(item)
         str = re.match(r'[^\t]+\t([^\t]+)\t[^\t]+\t', item)
         item_n = str.group(1)
         item_queue.append(item_n)#所有入口种子存放在队列之中
-    print('all seeds have been processed successfully!')
+    
+    filename = 'd:/html/'
+    if not os.path.exists(filename):#创建文件如果文件不存在
+        os.makedirs(filename)
 
-
-    # def start_requests(self):
-    #     self.crawler.signals.connect(self.make_requests,signal = signals.spider_idle)
-    #     return []
+        
+        
     def start_requests(self):
         first_url = 'http://baike.baidu.com/item/'+self.item_queue.popleft()#弹出队列中第一个item
         yield scrapy.Request(first_url, callback=self.start_parse, priority=0, meta={'priority': 0, 'time':1,'splash': {
             'args': {'lua_source': script, 'wait': 0.5}, 'endpoint': 'execute'}})  # 第一层地址
 
-    # def first_item(self,response):
-    # def first_item(self,response):
-    #     self.start_parse()
-    #
-    #     print('ssssss')
-    #     while (self.item_queue):  # 生成种子的request ；队列为空返回false
-    #         aa = self.item_queue.popleft()
-    #         print('^^^^^^^^^^^', aa)
-    #         seed_url = 'http://baike.baidu.com/item/' + aa
-    #         yield scrapy.Request(seed_url, callback=self.start_parse, priority=0, meta={'priority': 0, 'splash': {
-    #             'args': {'lua_source': script, 'wait': 0.5}, 'endpoint': 'execute'}})  # 第一层地址
-    #
-    #     print('0000000000000000000000000')
-
-
-
 
     def start_parse(self, response):
 
-        if(response.meta.get('time')==1):
-            while (self.item_queue):  # 生成种子的request ；队列为空返回false
-                aa = self.item_queue.popleft()
-                print('^^^^^^^^^^^', aa)
-                seed_url = 'http://baike.baidu.com/item/' + aa
+        if(response.meta.get('time')==1):#仅第一个入口种子执行while循环的初始化，产生所有种子url，后续种子跳过该环节
+            while (self.item_queue):  # 生成所有种子的request ；队列为空返回false
+                seed_url = 'http://baike.baidu.com/item/' + self.item_queue.popleft()
                 yield scrapy.Request(seed_url, callback=self.start_parse, priority=0, meta={'priority': 0, 'time':0,'splash': {
-                    'args': {'lua_source': script, 'wait': 0.5}, 'endpoint': 'execute'}})  # 第一层地址
-
-            print('0000000000000000000000000')
+                    'args': {'lua_source': script, 'wait': 0.5}, 'endpoint': 'execute'}})  # 第一层种子地址
 
 
-        if (response.css('.create-entrance').extract_first()!=None):#判断是否存在该词条
+        if (response.css('.baikeLogo').extract_first()!=None):#判断是否存在该词条
             pass
 
-        else:
+        else:#词条存在则提取页面信息生成item
             item = BaidubaikeItem()
             self.title = response.css('.lemmaWgt-lemmaTitle-title h1::text').extract_first()
             self.title_polysemy=response.css('.lemmaWgt-lemmaTitle-title h2::text').extract_first()#判断是否为歧义项
@@ -101,25 +81,21 @@ class BaikeSpider(scrapy.Spider):
                 item['origin'] = self.title
 
             item['id'] = response.css('.description ul>li>a::attr(href)').re_first(r'/historylist/[^/]*/([0-9]*)')
-            print('url+++++++++++++++++++++++++',response.url,'\n')
-            print('self.title-----------------',self.title,'item[ID]------------',item['id'])
             item['url'] = 'http://baike.baidu.com/item/'+self.title+'/'+item['id']
             item['view'] = response.css('.description ul>li>span[id=j-lemmaStatistics-pv]::text').extract_first()
             item['resource'] = item['title']+'.html'
             item['crawled_at'] = datetime.now()
             item['layer'] = response.meta.get('priority')
-            # self.item_layer.append(item['layer'])
             yield item
 
-            # with open('d:/html2/'+self.seed+'.html', 'wb') as file_writer: #download html
-            #     file_writer.write(bytes(response.text,encoding='utf-8'))
+            with open(self.filename+item['title']+'.html', 'wb') as file_writer: #download html
+                file_writer.write(bytes(response.text,encoding='utf-8'))
 
 
             #创建关联实体的request
             self.relate_item = response.css('div[class=para][label-module=para] a[target=_blank]::text').re(r'[^\n]+')
             for item_next in self.relate_item:
                 relate_url = 'http://baike.baidu.com/item/' + item_next
-                print('关联实体!!!!!!!!!!!!!!', item_next,'***********',relate_url)
                 priority = response.meta.get('priority')-1
                 father_id = item['id']
                 father_title = item['title']
@@ -132,10 +108,10 @@ class BaikeSpider(scrapy.Spider):
 
 
 
-    def follow_parse(self,response):
-        if (response.css('.create-entrance').extract_first() != None):  # 判断是否存在该词条
+    def follow_parse(self,response):#处理关联实体页面
+        if (response.css('.baikeLogo').extract_first() != None):  # 判断是否存在该词条
             pass
-        else:#处理关联实体
+        else:#处理关联实体，提取信息生成item/item_related（插入种子的related字段中）
             item = BaidubaikeItem()
             item_related = RelatedInfoItem()
             self.title = response.css('.lemmaWgt-lemmaTitle-title h1::text').extract_first()
@@ -151,21 +127,19 @@ class BaikeSpider(scrapy.Spider):
 
             item_related['title'] = response.meta.get('related_title')#上一层页面中关联词
             item['id'] = item_related['id'] = response.css('.description ul>li>a::attr(href)').re_first(r'/historylist/[%A-Za-z0-9]*/([0-9]*)')
-            print('self.title%%%%%-----------------',self.title,'item[ID]%%%%%------------',item['id'])
-
             item['url'] = 'http://baike.baidu.com/item/'+self.title+'/'+item['id']
             item['view'] = response.css('.description ul>li>span[id=j-lemmaStatistics-pv]::text').extract_first()
             item['resource'] = item['title']+'.html'
             item['crawled_at'] = datetime.now()
             item['layer'] = response.meta.get('priority')
             item['father_title'] = response.meta.get('father_title')
-            # self.item_layer.append(item['layer'])
-
-
             item_related['father_id'] = response.meta.get('father_id')#获取父节点的id
 
             yield item
             yield item_related
+            
+            with open(self.filename+item['title']+'.html', 'wb') as file_writer: #download html
+                file_writer.write(bytes(response.text,encoding='utf-8'))
 
             #生成下一节点的request
             self.relate_item = response.css('div[class=para][label-module=para] a[target=_blank]::text').re(r'[^\n]+')
