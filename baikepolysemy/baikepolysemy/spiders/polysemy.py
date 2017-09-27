@@ -4,8 +4,6 @@ from urllib.parse import unquote
 
 import pymongo
 import scrapy
-import re
-import json
 
 from baikepolysemy.items import BaikepolysemyItem
 from scrapy import crawler
