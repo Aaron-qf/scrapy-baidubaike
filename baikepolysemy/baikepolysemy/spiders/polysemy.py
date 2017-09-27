@@ -26,21 +26,6 @@ class PolysemySpider(scrapy.Spider):
     name = "polysemy"
     allowed_domains = ["baike.baidu.com"]
     start_urls = ['http://baike.baidu.com/']
-
-    # item_queue = deque()
-    # item_queue.clear()
-    # f = open('d:/json/s.json', 'r', encoding='utf-8')
-    # item_seed = f.readlines()
-    # for item in item_seed:
-    #     # print(item)
-    #     # str = re.match(r'[^\t]+\t([^\t]+)\t[^\t]+\t', item)
-    #     # item_n = str.group(1)
-    #     # print(item)
-    #     item_j = json.loads(item)
-    #     item_n = item_j['origin']
-    #     # print(item_n)
-    #     item_queue.append(item_n)  # 所有入口种子存放在队列之中
-    # print('all seeds have been processed successfully!')
     client = pymongo.MongoClient('mongodb://datacrawl-mongostore:AzHHSIXn1SLfHv7GurDSwPHDiCHSQUyjk2zjx3IUXCDhnaiUyqFGHclev8aPdCHB6IgkYqYVHrvxiyowfAgTnQ==@datacrawl-mongostore.documents.azure.cn:10250/?ssl=true&ssl_cert_reqs=CERT_NONE')
     db = client['baidubaike']
     collection = db.entityInfo
@@ -49,9 +34,7 @@ class PolysemySpider(scrapy.Spider):
         # self.client = pymongo.MongoClient(self.settings.get('MONGO_URI'))
         # self.db = self.client[self.settings.get('MONGO_DB2')]
         # self.collection = self.db.entityInfo
-        # print(self.collection)
         self.item = self.collection.find_one_and_update({'read' : 0},{'$set': {'read': 1}})
-        # print(self.item)
         if (self.item['polysemy']==0):
             self.name = self.item['title']
         else:
@@ -118,7 +101,7 @@ class PolysemySpider(scrapy.Spider):
                                  'args': {'lua_source': script, 'wait': 0.5}, 'endpoint': 'execute'}})  # 下一项
 
 
-    def polysemy_parse(self,response):
+    def polysemy_parse(self,response):#处理歧义项
         item = BaikepolysemyItem()
         item['polysemy'] = 1
         item['label'] = response.meta.get('label')
