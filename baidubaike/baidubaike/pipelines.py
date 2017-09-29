@@ -56,17 +56,6 @@ class MongoPipeline(object):
                 self.db.relatedInfo.insert({'layer':item['layer'],'source': item['id'], 'title': item['title'], 'related': []})  # 关联信息列表建立
             except DuplicateKeyError as e:  # 出现重复的实体
                 pass
-        # if isinstance(item, BaidubaikeItem):#种子列表
-        #     for a in BaikeSpider.item_layer:
-        #         print(a,'-------------------------')
-        #     if(item['layer']==max(BaikeSpider.item_layer) ):
-        #         print('!最高层数！！！！！！！！！！！！！！！！',max(BaikeSpider.item_layer))
-        #         print('!层数！！！！！！！！！！！！！！！！',item['layer'])
-        #         self.db.entityInfo.insert(dict(item))#种子列表实体信息
-        #         # BaikeSpider.item_layer.popleft()
-        #         self.db.relatedInfo.insert({'source': item['id'], 'title': item['title'],'related': []})#种子列表关联信息
-        #         self.db.relatedInfo.ensure_index( [('source',pymongo.ASCENDING)],unique=True)#建立source的唯一索引
-
 
         if isinstance(item,RelatedInfoItem):#关联信息的插入
             self.db.relatedInfo.update(
